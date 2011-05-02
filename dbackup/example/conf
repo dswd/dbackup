@@ -1,0 +1,72 @@
+#DBackup config file
+
+# Local path that should be backed up
+# The excludes file can be used to exclude certain files under this path
+#
+# Note: the exclude file must not contains paths outside the local path
+#
+LOCAL="/"
+
+# Remote backend to store backups to
+# The following protocols are supported:
+#
+# file:///some_dir
+#   Backup to a mounted remote filesystem, e.g. NFS
+#   Note: be sure to exclude the mount point from backups
+#   Note2: the filesystem root / causes the URIs to start with file:///
+#
+# ftp://user[:password]@other.host[:port]/some_dir
+#   Backup via FTP
+#
+# imap://user[:password]@host.com[/from_address_prefix]
+# imaps://user[:password]@host.com[/from_address_prefix]
+#   Backup to an imap server, e.g. gmail
+#   Note: imaps:// uses SSL encryption for the connection
+#
+# scp://user[:password]@other.host[:port]/some_dir
+# ssh://user[:password]@other.host[:port]/some_dir
+#   Backup via SSH
+#   Note: ssh:// and scp:// are the same
+#
+# webdav://user[:password]@other.host/some_dir
+# webdavs://user[:password]@other.host/some_dir
+#   Backup via webdav
+#   Note: imaps:// uses SSL encryption for the connection
+#
+# Note: duplicity supports some more protocols, see duplicity(1) for more infos
+#
+REMOTE="file:///mnt/backup"
+
+# Options to give to duplicity
+# The following options can be used:
+#
+# --full-if-older-than 3M
+#   Force duplicity to make a full backup if the last one is older than 3 months
+#
+# --asynchronous-upload
+#   Upload one chunk while preparing another one
+#
+# --encrypt-key AABBCCDD
+#   Use the gpg key AABBCCDD for encryption
+#   Note: root needs to have at least the public key
+#
+# --gpg-options "--trusted-key 0011223344AABBCCDD"
+#   Give special options to gpg
+#   Note: the option string needs to be in quotation marks
+#   Note2: the example --trusted-key forces gpg to trust a key
+#
+# --volsize 100 
+#   Create volumes of a certain size (default: 25MB)
+#   Note: the real size can be slightly bigger
+#
+# Note: duplicity supports some more options, see duplicity(1) for more infos
+# Note2: DO NOT USE THE PARAMETERS --name AND --archive-dir
+#
+OPTS=()
+
+# Passphrase to use
+# This passphrase will be used by duplicity if uncommented
+# 
+# Note: if the --encrypt-key option is used, asymmetric (otherwise symmetric) encryption will be used
+#
+#export PASSPHRASE=changeme

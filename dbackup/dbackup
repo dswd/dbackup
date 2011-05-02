@@ -1,0 +1,116 @@
+#!/bin/bash
+
+ARCHIVE="/var/lib/dbackup"
+
+NAME="$1"
+shift
+
+usage() {
+  cat <<EOF
+Usage: $0 name cmd [opts]
+   name: The name of the duplicity backup entry
+
+The following commands exist:
+
+$0 NAME create
+	Creates a new backup entry
+$0 NAME edit [config|excludes]
+	Edit the exclude list or the config (default) of the backup entry
+$0 NAME status
+	Show the status of a backup entry
+$0 NAME files
+	Show the list of all files in the backup of a backup entry
+$0 NAME logs
+	Show the log file of a backup entry
+$0 NAME backup
+	Run a normal backup, duplicity decides whether this is incremental or full
+$0 NAME full
+	Run a full backup
+$0 NAME verify
+	Verify the backups
+$0 NAME restore dst [--file-to-restore FILE] [--time TIME]
+	Restore a backup. To avoid overwriting files files are restored to the given destination.
+$0 NAME clean
+	Clean up leftovers from aborted runs
+EOF
+}
+
+if [ -z "$NAME" ]; then
+  usage
+  exit 0
+fi
+
+CONFFILE="$ARCHIVE/$NAME/conf"
+if [ -f "$CONFFILE" ]; then
+  . "$CONFFILE"
+else
+  if [ "$1" == "create" ]; then
+    cp -a "$ARCHIVE/.example" "$ARCHIVE/$NAME"
+    exit 0
+  else
+    echo "No such profile: $NAME" 1>&2
+    exit -1
+  fi
+fi
+
+DUPLICITY="/usr/bin/duplicity"
+
+OPTS=( "${OPTS[@]}" --archive "$ARCHIVE" --name "$NAME" )
+
+BAREOPTS=( "${OPTS[@]}" )
+
+EXCLUDEFILE="$ARCHIVE/$NAME/exclude"
+if [ -f "$EXCLUDEFILE" ]; then
+  OPTS=( "${OPTS[@]}" --exclude-globbing-filelist "$EXCLUDEFILE" )
+fi
+LOGFILE="/var/log/dbackup/$NAME"
+
+ARG="$1"
+shift
+
+case "$ARG" in
+	create )
+		echo "$NAME already exists" >&2
+		exit -3
+		;;
+	edit )
+		case "$1" in
+			exclude | excludes )
+				${EDITOR:-nano} "$EXCLUDEFILE"
+				;;
+			config | * )
+				${EDITOR:-nano} "$CONFFILE"
+				;;
+		esac
+		;;
+	status )
+		$DUPLICITY "${OPTS[@]}" "$@" collection-status $REMOTE
+		;;
+	files | list )
+		$DUPLICITY "${OPTS[@]}" "$@" list-current-files $REMOTE
+		;;
+	run | backup )
+		$DUPLICITY "${OPTS[@]}" "$@" $LOCAL $REMOTE | tee -a $LOGFILE
+		;;
+	full )
+		$DUPLICITY "${OPTS[@]}" "$@" full $LOCAL $REMOTE | tee -a $LOGFILE
+		;;
+	verify )
+		$DUPLICITY "${OPTS[@]}" "$@" verify $REMOTE $LOCAL
+		;;
+	restore )
+		DST="$1"
+		shift
+		$DUPLICITY "${BAREOPTS[@]}" "$@" restore $REMOTE "$DST"
+		;;
+	clean )
+		$DUPLICITY "${OPTS[@]}" "$@" clean $REMOTE
+		;;
+	logs )
+		less $LOGFILE
+		;;
+	* )
+		usage
+		exit -2
+		;;
+esac

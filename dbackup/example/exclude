@@ -1,0 +1,8 @@
+/dev
+/proc
+/sys
+/selinux
+/mnt
+/media
+/tmp
+**/lost+found
