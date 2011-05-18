@@ -28,10 +28,15 @@ $0 NAME full
 	Run a full backup
 $0 NAME verify
 	Verify the backups
-$0 NAME restore dst [--file-to-restore FILE] [--time TIME]
-	Restore a backup. To avoid overwriting files files are restored to the given destination.
+$0 NAME restore DST [--file-to-restore PATH] [--time AGE]
+	Restore a backup. To avoid overwriting files, files are restored to the given destination.
+	Subsets of the backup can be restored by giving the PATH of the files (without leading /)
+	If AGE is given, the backup of that date is used instead of the most recent
 $0 NAME clean
 	Clean up leftovers from aborted runs
+$0 NAME remove AGE [--force]
+	Remove backup sets older than AGE
+	--force must be used to actually delete the files instead of just listing them
 EOF
 }
 
@@ -108,6 +113,11 @@ case "$ARG" in
 		;;
 	logs )
 		less $LOGFILE
+		;;
+	remove )
+		TIME="$1"
+		shift
+		$DUPLICITY  "${OPTS[@]}" remove-older-than $TIME "$@" $REMOTE
 		;;
 	* )
 		usage
