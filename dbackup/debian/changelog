@@ -1,7 +1,7 @@
 dbackup (0.2) unstable; urgency=low
 
   * Added more files to default exclude list
-  * Addedd remove action
+  * Added remove action
   * Updated help message
 
  -- Dennis Schwerdel <schwerdel@informatik.uni-kl.de>  Tue, 17 May 2011 23:45:06 +0200

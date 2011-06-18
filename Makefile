@@ -2,7 +2,7 @@ PACKAGE=dbackup
 DEPENDENCIES=debhelper devscripts
 
 .PHONY: default
-default: build src
+default: clean build src
 
 .PHONY: src
 src: $(PACKAGE).tar.gz
