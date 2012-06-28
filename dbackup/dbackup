@@ -119,6 +119,24 @@ case "$ARG" in
 		shift
 		$DUPLICITY  "${OPTS[@]}" remove-older-than $TIME "$@" $REMOTE
 		;;
+        schedule )
+		CHANGE="$1"
+		CURRENT="none"
+		for period in hourly daily weekly monthly yearly; do
+			if [ -f "/etc/cron.$period/dbackup-$NAME" ]; then
+				CURRENT="$period"
+			fi
+		done
+		if [ "$CHANGE" == "" ]; then
+			echo "Schedule of $NAME backup: $CURRENT"
+		else
+			rm -f "/etc/cron.$CURRENT/dbackup-$NAME"
+			cat <<EOF > "/etc/cron.$CHANGE/dbackup-$NAME"
+#!/bin/bash
+$(which dbackup) $NAME run >/dev/null
+EOF
+		fi
+                ;;
 	* )
 		usage
 		exit -2
