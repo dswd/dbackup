@@ -18,4 +18,4 @@ $(PACKAGE)_*.deb:
 clean:
 	(cd $(PACKAGE); debuild clean; cd ..)
 	rm -rf $(PACKAGE)_*
-	rm $(PACKAGE).tar.gz
+	rm -rf $(PACKAGE).tar.gz

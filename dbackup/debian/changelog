@@ -1,3 +1,10 @@
+dbackup (0.3) unstable; urgency=low
+
+  * Added schedule action
+  * Added exec_before and exec_after scripts
+
+ -- Dennis Schwerdel <schwerdel@informatik.uni-kl.de>  Mon, 24 Jun 2013 15:51:46 +0200
+
 dbackup (0.2) unstable; urgency=low
 
   * Added more files to default exclude list

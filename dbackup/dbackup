@@ -45,6 +45,12 @@ if [ -z "$NAME" ]; then
   exit 0
 fi
 
+#Can be overwritten by config file
+EXEC_BEFORE="$ARCHIVE/$NAME/exec_before.sh"
+EXEC_AFTER="$ARCHIVE/$NAME/exec_after.sh"
+LOGFILE="/var/log/dbackup/$NAME"
+DUPLICITY="/usr/bin/duplicity"
+
 CONFFILE="$ARCHIVE/$NAME/conf"
 if [ -f "$CONFFILE" ]; then
   . "$CONFFILE"
@@ -58,7 +64,6 @@ else
   fi
 fi
 
-DUPLICITY="/usr/bin/duplicity"
 
 OPTS=( "${OPTS[@]}" --archive "$ARCHIVE" --name "$NAME" )
 
@@ -68,10 +73,20 @@ EXCLUDEFILE="$ARCHIVE/$NAME/exclude"
 if [ -f "$EXCLUDEFILE" ]; then
   OPTS=( "${OPTS[@]}" --exclude-globbing-filelist "$EXCLUDEFILE" )
 fi
-LOGFILE="/var/log/dbackup/$NAME"
 
 ARG="$1"
 shift
+
+function run() {
+	MODE=$1
+	if [ -x "$EXEC_BEFORE" ]; then
+		$EXEC_BEFORE || exit -4
+	fi
+	$DUPLICITY "${OPTS[@]}" "$@" $MODE $LOCAL $REMOTE | tee -a $LOGFILE
+	if [ -x "$EXEC_AFTER" ]; then
+		$EXEC_AFTER || exit -4
+	fi
+}
 
 case "$ARG" in
 	create )
@@ -95,10 +110,10 @@ case "$ARG" in
 		$DUPLICITY "${OPTS[@]}" "$@" list-current-files $REMOTE
 		;;
 	run | backup )
-		$DUPLICITY "${OPTS[@]}" "$@" $LOCAL $REMOTE | tee -a $LOGFILE
+		run 
 		;;
 	full )
-		$DUPLICITY "${OPTS[@]}" "$@" full $LOCAL $REMOTE | tee -a $LOGFILE
+		run full
 		;;
 	verify )
 		$DUPLICITY "${OPTS[@]}" "$@" verify $REMOTE $LOCAL
