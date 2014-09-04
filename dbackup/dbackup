@@ -1,9 +1,24 @@
 #!/bin/bash
 
+DUPLICITY=$(which duplicity)
+CONFIGDIR="/etc/dbackup"
 ARCHIVE="/var/lib/dbackup"
 
 NAME="$1"
 shift
+
+if [ -f /etc/default/dbackup ]; then
+  . /etc/default/dbackup
+fi
+
+#Can be overwritten by config file
+EXEC_BEFORE="$CONFIGDIR/$NAME.exec_before.sh"
+EXEC_AFTER="$CONFIGDIR/$NAME.exec_after.sh"
+LOGFILE="/var/log/dbackup/$NAME"
+VOLSIZE="100"
+GPGKEY=""
+PASSPHRASE=""
+MAX_FULL_AGE="3M"
 
 usage() {
   cat <<EOF
@@ -45,18 +60,14 @@ if [ -z "$NAME" ]; then
   exit 0
 fi
 
-#Can be overwritten by config file
-EXEC_BEFORE="$ARCHIVE/$NAME/exec_before.sh"
-EXEC_AFTER="$ARCHIVE/$NAME/exec_after.sh"
-LOGFILE="/var/log/dbackup/$NAME"
-DUPLICITY="/usr/bin/duplicity"
-
-CONFFILE="$ARCHIVE/$NAME/conf"
+EXCLUDEFILE="$CONFIGDIR/$NAME.exclude"
+CONFFILE="$CONFIGDIR/$NAME.conf"
 if [ -f "$CONFFILE" ]; then
   . "$CONFFILE"
 else
   if [ "$1" == "create" ]; then
-    cp -a "$ARCHIVE/.example" "$ARCHIVE/$NAME"
+    cp -a "$CONFIGDIR/example.conf" "$CONFFILE"
+    cp -a "$CONFIGDIR/example.exclude" "$EXCLUDEFILE"
     exit 0
   else
     echo "No such profile: $NAME" 1>&2
@@ -64,12 +75,20 @@ else
   fi
 fi
 
-
 OPTS=( "${OPTS[@]}" --archive "$ARCHIVE" --name "$NAME" )
 
 BAREOPTS=( "${OPTS[@]}" )
 
-EXCLUDEFILE="$ARCHIVE/$NAME/exclude"
+if [ "$VOLSIZE" != "" ]; then
+   OPTS=( "${OPTS[@]}" --volsize"$VOLSIZE" )
+fi
+if [ "$GPGKEY" != "" ]; then
+  OPTS=( "${OPTS[@]}" --encrypt-key "$GPGKEY" --gpg-options "--trusted-key $GPGKEY" )
+fi
+# ignore PASSPHRASE here
+if [ "$MAX_FULL_AGE" != "" ]; then
+  OPTS=( "${OPTS[@]}" --full-if-older-than "$MAX_FULL_AGE" )
+fi
 if [ -f "$EXCLUDEFILE" ]; then
   OPTS=( "${OPTS[@]}" --exclude-globbing-filelist "$EXCLUDEFILE" )
 fi
@@ -80,11 +99,15 @@ shift
 function run() {
 	MODE=$1
 	if [ -x "$EXEC_BEFORE" ]; then
-		$EXEC_BEFORE || exit -4
+		LOCAL=$LOCAL REMOTE=$REMOTE NAME=$NAME $EXEC_BEFORE || exit -4
 	fi
-	$DUPLICITY "${OPTS[@]}" "$@" $MODE $LOCAL $REMOTE | tee -a $LOGFILE
+	if [ "$PASSPHRASE" == "" ]; then
+		$DUPLICITY "${OPTS[@]}" "$@" $MODE $LOCAL $REMOTE | tee -a $LOGFILE
+	else
+		PASSPHRASE="$PASSPHRASE" $DUPLICITY "${OPTS[@]}" "$@" $MODE $LOCAL $REMOTE | tee -a $LOGFILE
+	fi
 	if [ -x "$EXEC_AFTER" ]; then
-		$EXEC_AFTER || exit -4
+		LOCAL=$LOCAL REMOTE=$REMOTE NAME=$NAME $EXEC_AFTER || exit -4
 	fi
 }
 
@@ -101,6 +124,16 @@ case "$ARG" in
 			config | * )
 				${EDITOR:-nano} "$CONFFILE"
 				;;
+			exec*before )
+				[ -f "$EXEC_BEFORE" ] || cp -a "$CONFIGDIR/example.exec_before.sh" "$EXEC_BEFORE"
+				${EDITOR:-nano} "$EXEC_BEFORE"
+				[ -f "$EXEC_BEFORE" ] && chmod +x "$EXEC_BEFORE"
+				;;
+			exec*after )
+				[ -f "$EXEC_AFTER" ] || cp -a "$CONFIGDIR/example.exec_after.sh" "$EXEC_AFTER"
+				${EDITOR:-nano} "$EXEC_AFTER"
+				[ -f "$EXEC_AFTER" ] && chmod +x "$EXEC_AFTER"
+				;;
 		esac
 		;;
 	status )
@@ -110,7 +143,7 @@ case "$ARG" in
 		$DUPLICITY "${OPTS[@]}" "$@" list-current-files $REMOTE
 		;;
 	run | backup )
-		run 
+		run
 		;;
 	full )
 		run full
@@ -126,7 +159,7 @@ case "$ARG" in
 	clean )
 		$DUPLICITY "${OPTS[@]}" "$@" clean $REMOTE
 		;;
-	logs )
+	logs | log )
 		less $LOGFILE
 		;;
 	remove )
@@ -146,10 +179,12 @@ case "$ARG" in
 			echo "Schedule of $NAME backup: $CURRENT"
 		else
 			rm -f "/etc/cron.$CURRENT/dbackup-$NAME"
-			cat <<EOF > "/etc/cron.$CHANGE/dbackup-$NAME"
+			if [ "$CHANGE" != "never" ]; then
+				cat <<EOF > "/etc/cron.$CHANGE/dbackup-$NAME"
 #!/bin/bash
 $(which dbackup) $NAME run >/dev/null
 EOF
+			fi
 		fi
                 ;;
 	* )

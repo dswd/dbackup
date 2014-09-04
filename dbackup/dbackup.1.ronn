@@ -1,0 +1,233 @@
+dbackup(1) -- duplicity frontend
+================================
+
+## SYNOPSIS
+
+`dbackup` <profile> create<br>
+`dbackup` <profile> edit [<config>]<br>
+`dbackup` <profile> (status | files | logs | backup | full | verify | clean)<br>
+`dbackup` <profile> restore <dst> [--file-to-restore <path>] [--time <age>]<br>
+`dbackup` <profile> remove <age> [--force]<br>
+`dbackup` <profile> schedule [<period>]
+
+
+## DESCRIPTION
+
+**DBackup** is a frontend for duplicity(1), the versatile backup tool. DBackup 
+takes care of storing the configuration of duplicity and adds some useful 
+functionality.
+
+DBackup can handle multiple backup profiles. The current <profile> is given as
+first parameter. All commands except `create` expect the profile to exist.
+
+
+## OPTIONS / COMMANDS
+
+The command must be the second argument to dbackup (the first argument is the 
+<profile>). The following commands control what dbackup does.
+
+  * `create`:
+    This command creates a new profile named <profile>. This profile is 
+    initially empty and should be configured using `edit`.
+
+  * `edit` [<config>]:
+    The edit command can be used to edit the configuration of the profile.
+    The parameter <config> determines what configuration file will be opened.
+    
+    If <config> is "config" or empty, the main configuration file of the 
+    profile will be opened for editiing.
+    
+    If <config> is "exclude" or "excludes", the file containing paths to 
+    exclude is opened for editing.
+    
+    If <config> is "exec_before" or "exec_after", the respective hook script 
+    will be opened for editing. After editing that script, it will 
+    automatically be made executable using chmod(1).
+    
+    For editing, the default editor is used ($EDITOR environment variable).
+
+  * `status`:
+    This command returns an overview of all stored backup chains for this 
+    profile.
+
+  * `files`, `list`:
+    Those commands show a list of all files that are included in the most 
+    current backup.
+
+  * `logs`, `log`:
+    The logs command displays the logs of all backup runs of this profile.
+
+  * `run`, `backup`:
+    The backup command triggers a backup run. The backup will use all the
+    configuration options set for the profile (See section PROFILE 
+    CONFIGURATION for more details).
+
+  * `full`:
+    The full comand triggers a backup run as `backup` does but forces the 
+    backup to be a full backup rather than automatically determining wheter
+    it should be full or incremental.
+
+  * `verify`:
+    This command compares the source data to the most current backup and 
+    displays all differing files.
+
+  * `clean`:
+    This command removes left-overs from failed backup runs. It will not remove 
+    old successfull backups.
+
+  * `restore` <dst> [--file-to-restore <path>] [--time <age>]:
+    The restore command can be used to extract files from the backup. To avoid 
+    overriding files, the files are extracted to the path given as <dst> 
+    paramter.
+    
+    If --file-to-restore <path> is given, only files in that given path 
+    (relative to backup source) are extracted.
+    
+    If --time <age> is given, the backup of that date will be taken instead of 
+    the most current. <age> can either be relative to the current time 
+    (e.g 1h10s for one hour and 10 seconds or 6M1D for 6 months and 1 day) or 
+    an absolute timestamp (either unix timestamp or YYYY-MM-DD).
+
+  * `remove` <age> [--force]:
+    This command removes ols backup chains older than the given <age>. 
+    The <age> parameter follows the same syntax as in `restore`.
+    
+    If --force is given, the corresponding files will be removed. Otherwise the
+    files to be removed will just be listed but not removed.
+
+  * `schedule` [<period>]:
+    This command schedules the backup using cron.
+    
+    If the <period> is one of "hourly", "daily", "weekly", "monthly" or 
+    "yearly", an entry will be created in the corresponding cron folder that 
+    runs the `run` command at the given interval. Any old schedule will be 
+    removed.
+    
+    If the <period> is "never", any existing schedule entry will be removed.
+    
+    If the <period> parameter is not given, the current schedule is not modified
+    and printed instead.
+
+
+## PROFILE CONFIGURATION
+    
+The following options can be set in a profile configuration file using 
+`dbackup <profile> edit`.
+
+  * `LOCAL`:
+    This gives the path of the local files to be included in the backup.
+    This path must be absolute (must start with "/")
+    
+  * `REMOTE`:
+    This options sets thne remote storage location. This option must be a URL
+    in the form scheme://path.
+    Duplicity supports a variety of protocols (e.g. FTP, SFTP, Webdav).
+    Please refer to duplicity(1) on which protocols are supported and what the
+    URL syntax for them is.
+    
+  * `MAX_FULL_AGE`:
+    This option controls how often DBackup will create a full backup to start 
+    a new chain containing incremental backups. If this options is left empty,
+    no full backups will be done automatically due to age.
+    The default is "3M" meaning 3 months.
+    
+  * `PASSPHRASE`:
+    If this option is set, the backups are encrypted using this secret key.
+
+    Note: This key must be stored as plain-text, which might be a 
+    security risk.
+    
+  * `GPGKEY`:
+    If this option is set, the backups are encrypted asymmetrically to this 
+    public key, using gpg(1). The key must be in a keyring of gpg.
+
+    Note: This option overrides the PASSPHRASE option.
+    
+  * `VOLSIZE`:
+    This option sets the file size of the backup volumes that will be copied 
+    to the remote storage location. The default is 100 meaning 100 MB. 
+    Depending on the protocol, this might be set to a small value as bigger
+    files are not supported.
+
+    Note: The resulting files can be slightly bigger than the given size due to
+    format overhead.
+
+    
+## EXCLUDING PATHS
+
+Per default, all files under the root path set via <LOCAL> will be considered
+for the backup. Some of these files contain transient data or change very often
+and should be excluded. A list of paths to be excluded can be edited using:
+    $ `dbackup` <profile> edit excludes
+
+
+These excludes follow a simple syntax: Each line gives a path that should be
+ignored. Wildcards can be used as follows:
+
+  * `?` can be expanded to any one character except "/"
+  * `*` can be expanded to any string of characters not containing "/"
+  * `**` can be expanded to any string of characters
+
+
+Lines prefixed with "+ " (mind the space) are explicitly included. The first
+line that matches a given path determines whether it is excluded or included.
+
+If a directory is excluded, its children (directories and files) will not be
+followed recursively unless they are explicitly included again.
+
+
+## EXAMPLE URLS
+
+Here are some example URLs that can be used as remote storage paths:
+
+  * `file:///some_dir`:
+    Backup to a mounted remote filesystem, e.g. NFS
+
+    Note: be sure to exclude the mount point from backups
+
+    Note2: the filesystem root / causes the URIs to start with file:///
+    
+  * `ftp://user[:password]@other.host[:port]/some_dir`:
+    Backup via FTP
+    
+  * `imap[s]://user[:password]@host.com[/from_address_prefix]`:
+    Backup to an imap server, e.g. gmail
+
+    Note: imaps:// uses SSL encryption for the connection
+    
+  * `sftp://user[:password]@other.host[:port]/some_dir`:
+    Backup via SFTP
+
+    Note: ssh:// and scp:// are the same
+    
+  * `webdav[s]://user[:password]@other.host/some_dir`:
+    Backup via webdav
+
+    Note: imaps:// uses SSL encryption for the connection
+
+
+Note: duplicity supports some more protocols, see duplicity(1) for more infos
+
+
+## EXAMPLE: DATABASE BACKUP
+
+PostgreSQL databases can be backed up as SQL using pg_dump(1) and the following
+`exec_before` script.
+
+    #!/bin/bash
+    PSQL="sudo -u postgres psql"
+    PG_DUMP="sudo -u postgres pg_dump"
+    rm $LOCAL/*
+    for DB in $($PSQL -t -c 'SELECT datname FROM pg_database WHERE datistemplate = false;'); do
+      $PG_DUMP $DB -c -f $LOCAL/$DB.sql
+    done
+
+
+## COPYRIGHT
+
+Ronn is Copyright (C) 2012 Dennis Schwerdel <https://github.com/dswd/dbackup>
+
+
+## SEE ALSO
+
+duplicity(1)

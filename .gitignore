@@ -1,3 +1,6 @@
+dbackup/dbackup.1
+dbackup/dbackup.1.html
+
 dbackup.tar.gz
 dbackup/debian/dbackup.debhelper.log
 dbackup/debian/dbackup.substvars
@@ -6,4 +9,3 @@ dbackup/debian/files
 dbackup_*.deb
 dbackup_*.build
 dbackup_*.changes
-
